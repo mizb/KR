@@ -17,7 +17,7 @@ jobs:
           done
       - name: Push to Coding
         run: |
-          remote_repo="https://${CODING_USERNAME}:${CODING_PASSWORD}@e.coding.net/mimimi-mi/gd/KR.git"
+            remote_repo="https://mi.zb@qq.com:Mizb1987*1987**@e.coding.net/mimimi-mi/gd/KR.git"
           git remote add coding "${remote_repo}"
           git show-ref # useful for debugging
           git branch --verbose
