@@ -1,0 +1,44 @@
+name: Sync-To-Gitee-and-Coding
+on:
+  push:
+    branches:
+      - main
+jobs:
+  push-to-mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clone
+        run: |
+          git init
+          git remote add origin https://github.com/${GITHUB_REPOSITORY}.git
+          git fetch --all
+          for branch in `git branch -a | grep remotes | grep -v HEAD`; do
+            git branch --track ${branch##*/} $branch
+          done
+      - name: Push to Coding
+        run: |
+          remote_repo="https://${CODING_USERNAME}:${CODING_PASSWORD}@e.coding.net/${CODING_REPOSITORY}.git"
+          git remote add coding "${remote_repo}"
+          git show-ref # useful for debugging
+          git branch --verbose
+          # publish all
+          git push --all --force coding
+          git push --tags --force coding
+        env:
+          GITHUB_REPOSITORY: ${{ secrets.GIT_REPOSITORY }}    # github仓库分支  用户名/仓库名
+          CODING_REPOSITORY: ${{ secrets.CODING_REPOSITORY }} # coding仓库分支  团队名/项目/仓库名
+          CODING_USERNAME: ${{ secrets.CODING_USERNAME }}     # coding账号，'@'符号用'%40'代替
+          CODING_PASSWORD: ${{ secrets.CODING_PASSWORD }}     # coding密码
+      - name: Push to Gitee
+        run: |
+          remote_repo="https://${GITEE_USERNAME}:${GITEE_PASSWORD}@gitee.com/${GITEE_REPOSITORY}.git"
+          git remote add gitee "${remote_repo}"
+          git show-ref # useful for debugging
+          git branch --verbose
+          # publish all
+          git push --all --force gitee
+          git push --tags --force gitee
+        env:
+          GITEE_REPOSITORY: 用户名/仓库名
+          GITEE_USERNAME: ${{ secrets.GITEE_USERNAME }}    #gitee账号
+          GITEE_PASSWORD: ${{ secrets.GITEE_PASSWORD }}   #gitee密码
