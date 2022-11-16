@@ -1,24 +1,14 @@
-/*
-京东集魔方
-===========================
 
-cron:2 0,11 * * *
-============Quantumultx===============
-[task_local]
-#集魔方
-2 0,11 * * * jd_desire.js, tag=集魔方, enabled=true
+/*
+9 8 * * * jd_plus2bean.js
  */
 
-const $ = new Env('京东集魔方');
+const $ = new Env('plus专属礼');
 const notify = $.isNode() ? require('./sendNotify') : '';
-//Node.js用户请在jdCookie.js处填写京东ck;
 const jdCookieNode = $.isNode() ? require('./jdCookie.js') : '';
-let jdNotify = true;//是否关闭通知，false打开通知推送，true关闭通知推送
+let jdNotify = true;
 //IOS等用户直接用NobyDa的jd cookie
-let cookiesArr = [], cookie = '', message;
-let uuid
-$.shareCodes = []
-let hotInfo = {}
+let cookiesArr = [], cookie = '', message = '';
 if ($.isNode()) {
   Object.keys(jdCookieNode).forEach((item) => {
     cookiesArr.push(jdCookieNode[item])
@@ -27,7 +17,6 @@ if ($.isNode()) {
 } else {
   cookiesArr = [$.getdata('CookieJD'), $.getdata('CookieJD2'), ...jsonParse($.getdata('CookiesJD') || "[]").map(item => item.cookie)].filter(item => !!item);
 }
-const JD_API_HOST = 'https://api.m.jd.com/client.action';
 !(async () => {
   if (!cookiesArr[0]) {
     $.msg($.name, '【提示】请先获取京东账号一cookie\n直接使用NobyDa的京东签到获取', 'https://bean.m.jd.com/bean/signIndex.action', { "open-url": "https://bean.m.jd.com/bean/signIndex.action" });
@@ -40,24 +29,17 @@ const JD_API_HOST = 'https://api.m.jd.com/client.action';
       $.index = i + 1;
       $.isLogin = true;
       $.nickName = '';
-      message = '';
-      await TotalBean();
+      //await TotalBean();
       console.log(`\n******开始【京东账号${$.index}】${$.nickName || $.UserName}*********\n`);
       if (!$.isLogin) {
         $.msg($.name, `【提示】cookie已失效`, `京东账号${$.index} ${$.nickName || $.UserName}\n请重新登录获取\nhttps://bean.m.jd.com/bean/signIndex.action`, { "open-url": "https://bean.m.jd.com/bean/signIndex.action" });
-
         if ($.isNode()) {
           await notify.sendNotify(`${$.name}cookie已失效 - ${$.UserName}`, `京东账号${$.index} ${$.UserName}\n请重新登录获取cookie`);
         }
         continue
       }
-      $.sku = []
-      $.sku2 = []
-      $.adv = []
-      $.hot = false
-      uuid = randomString(40)
-      await jdMofang()
-      hotInfo[$.UserName] = $.hot
+      await jingBeanReceive();
+	  await $.wait(2000)
     }
   }
 })()
@@ -68,264 +50,42 @@ const JD_API_HOST = 'https://api.m.jd.com/client.action';
     $.done();
   })
 
-async function jdMofang() {
-  console.log(`\n集魔方 抽京豆 赢新品`)
-  await getInteractionInfo()
-}
-
-//第二个
-async function getInteractionInfo(type = true) {
-  return new Promise(async (resolve) => {
-    $.post(taskPostUrl("getInteractionInfo", {"geo":{"lng":"106.47647010204035","lat":"29.502312842810458"},"mcChannel":0,"sign":3}), async (err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`getInteractionInfo API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-            // console.log(data.result.taskPoolInfo.taskList);
-            if (type) {
-              $.interactionId = data.result.interactionId
-              $.taskPoolId = data.result.taskPoolInfo.taskPoolId
-              for (let key of Object.keys(data.result.taskPoolInfo.taskList)) {
-                let vo = data.result.taskPoolInfo.taskList[key]
-                if (vo.taskStatus === 0) {
-                  if (vo.taskId === 2004) {
-                    await queryPanamaFloor()
-                    for (let id of $.sku2) {
-                      $.complete = false
-                      await executeNewInteractionTask(vo.taskId, id)
-                      await $.wait(2000)
-                      if ($.complete) break
-                    }
-                  }
-                  if (vo.taskId === 2002) {
-                    await qryCompositeMaterials()
-                    for (let id of $.sku) {
-                      $.complete = false
-                      await executeNewInteractionTask(vo.taskId, id)
-                      await $.wait(2000)
-                      if ($.complete) break
-                    }
-                  }
-                  if (vo.taskId === 2006) {
-                    await qryCompositeMaterials2()
-                    for (let id2 of $.adv) {
-                      $.complete = false
-                      await executeNewInteractionTask(vo.taskId, id2)
-                      await $.wait(2000)
-                      if ($.complete) break
-                    }
-                  }
-                } else {
-                  console.log(`已找到当前魔方`)
-                }
-              }
-              data = await getInteractionInfo(false)
-              if (data.result.hasFinalLottery === 0) {
-                let num = 0
-                for (let key of Object.keys(data.result.taskPoolInfo.taskRecord)) {
-                  let vo = data.result.taskPoolInfo.taskRecord[key]
-                  num += vo
-                }
-                if (num >= 9) {
-                  console.log(`共找到${num}个魔方，可开启礼盒`)
-                  await getNewFinalLotteryInfo()
-                } else {
-                  console.log(`共找到${num}个魔方，不可开启礼盒`)
-                }
-              } else {
-                console.log(`已开启礼盒`)
-              }
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
-function queryPanamaFloor() {
-  return new Promise((resolve) => {
-    $.post(taskPostUrl("qryCompositeMaterials", {"geo":{"lng":"106.47647010204035","lat":"29.502312842810458"},"mcChannel":0,"activityId":"01235772","pageId":"3620025","qryParam":"[{\"type\":\"advertGroup\",\"id\":\"06327486\",\"mapTo\":\"advData\",\"next\":[{\"type\":\"productGroup\",\"mapKey\":\"comment[0]\",\"mapTo\":\"productGroup\",\"attributes\":13}]}]","applyKey":"21new_products_h"}), (err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`queryPanamaFloor API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-            if(data) {
-								$.sku2 = ["100040841833","10061725999787","100006061653","100006061653","100026676965", "100040026969", "100042896729", "100037217923", "100038193673", "100039920647", "10057211785565"]
-                // $.sku2.push(skuVo.advertId)
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
-
-function qryCompositeMaterials() {
-  return new Promise((resolve) => {
-	$.post(taskPostUrl("qryCompositeMaterials", {"geo":null,"mcChannel":0,"activityId":"01235772","pageId":"3620025","qryParam":"[{\"type\":\"advertGroup\",\"id\":\"06327486\",\"mapTo\":\"advData\",\"next\":[{\"type\":\"productGroup\",\"mapKey\":\"comment[0]\",\"mapTo\":\"productGroup\",\"attributes\":13}]}]","applyKey":"21new_products_h"}), (err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`qryCompositeMaterials API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-			//console.log(data)
-            if(data) {
-								$.sku = ["100040841833","10061725999787","100006061653","100006061653","100026676965", "100040026969", "100042896729", "100037217923", "100038193673", "100039920647", "10057211785565"]
-                // $.sku2.push(skuVo.advertId)
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
-
-function qryCompositeMaterials2() {
-  return new Promise((resolve) => {
-    $.post(taskPostUrl("qryCompositeMaterials", {"geo":null,"mcChannel":0,"activityId":"01213138","pageId":"3513123","qryParam":"[{\"type\":\"advertGroup\",\"id\":\"06290597\",\"mapTo\":\"advData\",\"next\":[{\"type\":\"productGroup\",\"mapKey\":\"comment[0]\",\"mapTo\":\"productGroup\",\"attributes\":13}]}]","applyKey":"21new_products_h"}), (err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`qryCompositeMaterials API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-            //console.log(data);
-						if(data) {
-								$.adv = ["8801668406","6301676863"]
-                // $.sku2.push(skuVo.advertId)
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
-function executeNewInteractionTask(taskType, advertId) {
-  body = { "geo": null, "mcChannel": 0, "sign": 3, "interactionId": $.interactionId, "taskPoolId": $.taskPoolId, "taskType": taskType, "advertId": advertId }
-  if (taskType === 2002) {
-    body = { "geo": null, "mcChannel": 0, "sign": 3, "interactionId": $.interactionId, "taskPoolId": $.taskPoolId, "taskType": taskType, "sku": advertId }
-  }
-  return new Promise((resolve) => {
-    $.post(taskPostUrl("executeNewInteractionTask", body), (err, resp, data) => {
-      // console.log(taskPostUrl("executeNewInteractionTask", body));
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} executeNewInteractionTask API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-            if (data.result.hasDown === 1) {
-              console.log(data.result.isLottery === 1 ? `找到了一个魔方，获得${data.result.lotteryInfoList[0].quantity || ''}${data.result.lotteryInfoList[0].name}` : `找到了一个魔方`)
-              $.complete = true
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
-function getNewFinalLotteryInfo() {
-  return new Promise((resolve) => {
-    $.post(taskPostUrl("getNewFinalLotteryInfo", { "geo": null, "mcChannel": 0, "sign": 3, "interactionId": $.interactionId }), (err, resp, data) => {
-      try {
-        if (err) {
-          console.log(`${JSON.stringify(err)}`)
-          console.log(`${$.name} getNewFinalLotteryInfo API请求失败，请检查网路重试`)
-        } else {
-          if (safeGet(data)) {
-            data = JSON.parse(data)
-            if (data.result.lotteryStatus === 1) {
-              console.log(`开启礼盒成功：获得${data.result.lotteryInfoList[0].quantity}${data.result.lotteryInfoList[0].name}`)
-            } else {
-              console.log(`开启礼盒成功：${data.result.toast}`)
-            }
-          }
-        }
-      } catch (e) {
-        $.logErr(e, resp)
-      } finally {
-        resolve(data)
-      }
-    })
-  })
-}
 
 
-function taskPostUrl(functionId, body = {}) {
-  body = JSON.stringify(body)
-  if (functionId === "queryPanamaPage") body = escape(body)
-  return {
-    url: `${JD_API_HOST}?functionId=${functionId}&body=${encodeURI((body))}&client=wh5&clientVersion=10.1.4&appid=content_ecology&uuid=${uuid}&t=${Date.now()}`,
-    headers: {
-      'Host': 'api.m.jd.com',
-      'Accept': 'application/json, text/plain, */*',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Origin': 'https://prodev.m.jd.com',
-      'Accept-Language': 'zh-cn',
-      'User-Agent': $.isNode() ? (process.env.JD_USER_AGENT ? process.env.JD_USER_AGENT : (require('./USER_AGENTS').USER_AGENT)) : ($.getdata('JDUA') ? $.getdata('JDUA') : "jdapp;iPhone;9.4.4;14.3;network/4g;Mozilla/5.0 (iPhone; CPU iPhone OS 14_3 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148;supportJDSHWK/1"),
-      'Referer': 'https://prodev.m.jd.com/mall/active/TqTRGRrp9HZTfeyRTL2UGmX4mHG/index.html?babelChannel=ttt30',
-      'Accept-Encoding': 'gzip, deflate, br',
-      'Cookie': cookie
+function jingBeanReceive() {
+    let opt = {
+        url: `https://api.m.jd.com/client.action?functionId=jingBeanReceive&body={"encryptAssignmentId":"6bzcu8ZNPHFhuWZC55MhLgJCPiW","firstType":-100,"plugin_version":90556}&clientVersion=11.0.2&client=android&ef=1&ep=%7B%22ts%22%3A1658155958775%2C%22ridx%22%3A-1%2C%22cipher%22%3A%7B%22uuid%22%3A%22EJc4ENY0CJLrYzLwDQZsZq%3D%3D%22%2C%22aid%22%3A%22EJc4ENY0CJLrYzLwDQZsZq%3D%3D%22%7D%2C%22ciphertype%22%3A5%2C%22version%22%3A%221.2.0%22%7D&st=1658155977625&sign=354bbcb59bdc53276a62fb21c9d1f3df&sv=110`,
+        headers: {
+            'Host': 'api.m.jd.com',
+            'accept-encoding': 'gzip,deflate',
+            'content-type': 'application/x-www-form-urlencoded; charset=UTF-8',
+            'User-Agent': 'okhttp/3.12.1;jdmall;android;version/11.0.2;build/97565;',
+            'Cookie': cookie
+        }
     }
-  }
+    return new Promise(async (resolve) => {
+        $.post(opt, async (err, resp, data) => {
+            try {
+                if (err) {
+                    console.log(`${JSON.stringify(err)}`)
+                    console.log(`jingBeanReceive请求失败，请检查网路重试`)
+                } else {
+                    data = JSON.parse(data)
+                    if (data.isSuccess) {
+                        console.log(data.data.windowsContent)
+                    } else {
+                        console.log('已领取过！')
+                    }
+                }
+            } catch (e) {
+                $.logErr(e, resp)
+            } finally {
+                resolve(data)
+            }
+        })
+    })
 }
 
-
-function taskSignUrl(url, body) {
-  return {
-    url,
-    body: `body=${escape(body)}`,
-    headers: {
-      'Cookie': cookie,
-      'Host': 'api.m.jd.com',
-      'Connection': 'keep-alive',
-      'Content-Type': 'application/x-www-form-urlencoded',
-      'Referer': '',
-      'User-Agent': 'JD4iPhone/167774 (iPhone; iOS 14.7.1; Scale/3.00)',
-      'Accept-Language': 'zh-Hans-CN;q=1',
-      'Accept-Encoding': 'gzip, deflate, br',
-    }
-  }
-}
-function randomString(e) {
-  let t = "abcdef0123456789"
-  if (e === 16) t = "abcdefghijklmnopqrstuvwxyz0123456789"
-  e = e || 32;
-  let a = t.length, n = "";
-  for (let i = 0; i < e; i++)
-    n += t.charAt(Math.floor(Math.random() * a));
-  return n
-}
 
 function TotalBean() {
   return new Promise(async resolve => {
@@ -350,7 +110,7 @@ function TotalBean() {
           if (data) {
             data = JSON.parse(data);
             if (data['retcode'] === 1001) {
-              $.isLogin = false; //cookie过期
+              $.isLogin = false; 
               return;
             }
             if (data['retcode'] === 0 && data.data && data.data.hasOwnProperty("userInfo")) {
